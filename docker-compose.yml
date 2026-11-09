@@ -1,0 +1,54 @@
+services:
+  keycloak-db:
+    image: postgres:16-alpine
+    container_name: keycloak-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - keycloak-net
+
+  keycloak:
+    image: keycloak/keycloak:26.8.1
+    container_name: keycloak
+    restart: unless-stopped
+    command: start
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/${POSTGRES_DB}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_HOSTNAME: ${KC_HOSTNAME}
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_PORT: "8080"
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    volumes:
+      - /opt/web-apps/keycloak-theme-fa/target/keycloak-theme-fa-26.8.1-1.0.0.jar:/opt/keycloak/providers/keycloak-theme-fa-26.8.1-1.0.0.jar:ro
+      - /opt/web-apps/keycloak-theme-fa/src/main/resources/theme/fa:/opt/keycloak/themes/fa:ro
+    ports:
+      - "127.0.0.1:${KEYCLOAK_PORT}:8080"
+    networks:
+      - keycloak-net
+
+volumes:
+  keycloak_db_data:
+
+networks:
+  keycloak-net:
+    driver: bridge
